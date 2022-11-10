@@ -3,13 +3,16 @@ const app = express();
 const port = process.env.PORT || 5000;
 const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
+require('dotenv').config()
+
+
+const stripe = require("stripe")(process.env.MAILGUN_SECRET_KEY);
 
 // middleware
 app.use(cors());
 app.use(express.json());
   
-const uri =
-  "mongodb+srv://web-dev-phero:EZHDICmFfDvNSMqY@cluster0.ojj3cfr.mongodb.net/?retryWrites=true&w=majority";
+const uri =`mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster0.ojj3cfr.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {useNewUrlParser: true,useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 });
@@ -19,11 +22,33 @@ const nodemailer = require("nodemailer");
 const mg = require('nodemailer-mailgun-transport');
 const auth = {
   auth: {
-    api_key:'5a947b8796efd5beb1a9b63c260fdbe2-8845d1b1-6ce64d21',
-    domain: 'sandbox0ff7daad1a7c4d90adc7e1c30dfc436a.mailgun.org'
+    api_key:`${process.env.MAILGUN_API_KEY}`,
+    domain: `${process.env.MAILGUN_DOMAIN}`
   }
 }
 const nodemailerMailgun = nodemailer.createTransport(mg(auth));
+// ----------------- email ----------------
+const email = {
+  from: 'mdashrafulislam.0923@example.com',
+  to: 'ashalam610@gmail.com', // An array if you have multiple recipients.
+  subject: 'Congratulations,Ashraful Alam!',
+  //You can use "html:" to send HTML email content. It's magic!
+  html: '<b>Hi , i am Md Ashraful Islam and i am from Mailgun.</b>',
+  //You can use "text:" to send plain-text content. It's oldschool!
+  text: 'Mailgun rocks, pow pow!'
+}
+ // ------------- send email api 
+app.get('/email',  (req, res) =>{
+  nodemailerMailgun.sendMail(email, (err, info) => {
+    if (err) {
+      console.log(err);
+    }
+    else {
+      console.log(info);
+    }
+  });
+   res.send({status: 'success'})
+})
 
 async function run() {
   console.log("Connected to MongodbClient");
@@ -72,30 +97,22 @@ async function run() {
 }
 run().catch(console.dir);
  
-const email = {
-  from: 'mdashrafulislam.0923@example.com',
-  to: 'ashalam610@gmail.com', // An array if you have multiple recipients.
-  subject: 'Congratulations,Ashraful Alam!',
-  //You can use "html:" to send HTML email content. It's magic!
-  html: '<b>Hi , i am Md Ashraful Islam and i am from Mailgun.</b>',
-  //You can use "text:" to send plain-text content. It's oldschool!
-  text: 'Mailgun rocks, pow pow!'
-}
+app.post("/create-payment-intent", async (req, res) => {
+  const items  = req.body;
+  const price = items.price;
+  const amount = price * 100
 
- // ------------- send email api 
-app.get('/email',  (req, res) =>{
-
-  nodemailerMailgun.sendMail(email, (err, info) => {
-    if (err) {
-      console.log(err);
-    }
-    else {
-      console.log(info);
-    }
+  // Create a PaymentIntent with the order amount and currency
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amount,
+    currency: "usd",
+    payment_method_types:['card'],
   });
 
-   res.send({status: 'success'})
-})
+  res.send({
+    clientSecret: paymentIntent.client_secret,
+  });
+});
 
 app.get("/", (req, res) => {
   res.send("welcome to our pageination website");
